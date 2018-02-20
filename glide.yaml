@@ -1,0 +1,3 @@
+package: Solarflare
+import:
+- package: gopkg.in/alecthomas/kingpin.v2
