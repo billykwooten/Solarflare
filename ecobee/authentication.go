@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"encoding/json"
+	"github.com/jmoiron/jsonq"
 )
 
 func Get_ecobee_pin(ecobeeApiKey string) (string, error) {
@@ -66,6 +67,51 @@ func GetToken(Code string, ecobeeApiKey string) error {
 		Path:     "token",
 		RawQuery: uv.Encode(),
 	}
+
+	resp, err := http.PostForm(u.String(), nil)
+	if err != nil {
+		return fmt.Errorf("error POSTing request: %s", err)
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println("response Body:", string(body))
+
+	err = ioutil.WriteFile("cache/Ecobee_Token.json", body, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	return err
+}
+
+
+func RefreshToken(ecobeeApiKey string) error {
+	jsonFile, _ := ioutil.ReadFile("cache/Ecobee_Token.json")
+	data := map[string]interface{}{}
+	err := json.Unmarshal(jsonFile, &data)
+	if err != nil {
+		panic(err)
+	}
+
+	jq := jsonq.NewQuery(data)
+	RefreshToken, err := jq.String("refresh_token")
+	if err != nil {
+		panic(err)
+	}
+
+	uv := url.Values{
+		"grant_type": {"refresh_token"},
+		"refresh_token":     {RefreshToken},
+		"client_id":     {ecobeeApiKey},
+	}
+
+	u := url.URL{
+		Scheme:   "https",
+		Host:     "api.ecobee.com",
+		Path:     "token",
+		RawQuery: uv.Encode(),
+	}
+
 	resp, err := http.PostForm(u.String(), nil)
 	if err != nil {
 		return fmt.Errorf("error POSTing request: %s", err)
