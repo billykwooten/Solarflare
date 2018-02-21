@@ -1,27 +1,49 @@
 package ecobee
 
 import (
-	"encoding/json"
 	"net/http"
-	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/url"
+	"strings"
 )
 
-func Get_ecobee_pin(ecobeeApiKey string) (error) {
-	url := "https://api.ecobee.com/authorize"
+type PinRequest struct {
+	ResponseType string `json:"response_type"`
+	ClientID     string `json:"client_id"`
+	Scope        string `json:"scope"`
+}
 
-	var jsonData = map[string]string{"response_type": "ecobeePin", "client_id": ecobeeApiKey, "scope": "smartWrite"}
-	jsonValue, _ := json.Marshal(jsonData)
-	response, err := http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
-	if err != nil {
-		fmt.Printf("The HTTP POST request failed with error %s\n", err)
-	} else {
-		data, _ := ioutil.ReadAll(response.Body)
-		err = ioutil.WriteFile("ecobeePIN.json", data, 0644)
-		if err != nil {
-			panic(err)
-		}
+
+func Get_ecobee_pin(ecobeeApiKey string) (error) {
+	var Scopes = []string{"smartRead", "smartWrite"}
+
+	uv := url.Values{
+		"response_type": {"ecobeePin"},
+		"client_id":     {ecobeeApiKey},
+		"scope":         {strings.Join(Scopes, ",")},
 	}
+
+	u := url.URL{
+		Scheme:   "https",
+		Host:     "api.ecobee.com",
+		Path:     "authorize",
+		RawQuery: uv.Encode(),
+	}
+
+	resp, err := http.Get(u.String())
+	if err != nil {
+		return fmt.Errorf("error retrieving response: %s", err)
+	}
+
+	data, _ := ioutil.ReadAll(resp.Body)
+	err = ioutil.WriteFile("ecobeePIN.json", data, 0644)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(data))
+
 	return err
+
+
 }
