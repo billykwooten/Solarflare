@@ -6,16 +6,10 @@ import (
 	"io/ioutil"
 	"net/url"
 	"strings"
+	"encoding/json"
 )
 
-type PinRequest struct {
-	ResponseType string `json:"response_type"`
-	ClientID     string `json:"client_id"`
-	Scope        string `json:"scope"`
-}
-
-
-func Get_ecobee_pin(ecobeeApiKey string) (error) {
+func Get_ecobee_pin(ecobeeApiKey string) (string, error) {
 	var Scopes = []string{"smartRead", "smartWrite"}
 
 	uv := url.Values{
@@ -33,17 +27,57 @@ func Get_ecobee_pin(ecobeeApiKey string) (error) {
 
 	resp, err := http.Get(u.String())
 	if err != nil {
-		return fmt.Errorf("error retrieving response: %s", err)
+		return "", fmt.Errorf("error retrieving response: %s", err)
 	}
 
-	data, _ := ioutil.ReadAll(resp.Body)
-	err = ioutil.WriteFile("ecobeePIN.json", data, 0644)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("error reading response: %s", err)
+	}
+	resp.Body.Close()
+
+	var r struct {
+		EcobeePin string `json:"ecobeePin"`
+		Code      string `json:"code"`
+	}
+
+	err = json.Unmarshal(body, &r)
+	if err != nil {
+		return "", fmt.Errorf("error unmarshalling response: %s", err)
+	}
+
+	fmt.Printf("Pin is %q\nPress <enter> after authorizing it on https://www.ecobee.com/consumerportal in the menu under 'My Apps'\n", r.EcobeePin)
+	var input string
+	fmt.Scanln(&input)
+
+	return r.Code, err
+}
+
+func GetToken(Code string, ecobeeApiKey string) error {
+	uv := url.Values{
+		"grant_type": {"ecobeePin"},
+		"code":     {Code},
+		"client_id":     {ecobeeApiKey},
+	}
+
+	u := url.URL{
+		Scheme:   "https",
+		Host:     "api.ecobee.com",
+		Path:     "token",
+		RawQuery: uv.Encode(),
+	}
+	resp, err := http.PostForm(u.String(), nil)
+	if err != nil {
+		return fmt.Errorf("error POSTing request: %s", err)
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println("response Body:", string(body))
+
+	err = ioutil.WriteFile("cache/Ecobee_Token.json", body, 0644)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(string(data))
 
 	return err
-
-
 }
